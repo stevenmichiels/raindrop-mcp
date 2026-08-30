@@ -118,6 +118,11 @@ class RaindropClient:
 
         return {"result": True, "items": items, "count": len(items)}
 
+    async def list_tags(self, collection_id: int = 0) -> dict[str, Any]:
+        """Return tag names and bookmark counts, optionally by collection."""
+        path = "tags" if collection_id == 0 else f"tags/{collection_id}"
+        return await self._request("GET", path)
+
     async def search_bookmarks(
         self,
         query: str | None = None,

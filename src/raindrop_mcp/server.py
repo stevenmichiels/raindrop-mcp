@@ -57,6 +57,20 @@ class CollectionListResult(TypedDict):
     count: int
 
 
+class TagSummary(TypedDict):
+    """A tag name and its bookmark count."""
+
+    tag: str
+    count: int
+
+
+class TagListResult(TypedDict):
+    """Tag summaries and the number of tags returned."""
+
+    items: list[TagSummary]
+    count: int
+
+
 class BookmarkSummary(TypedDict):
     """Compact bookmark data suitable for search result lists."""
 
@@ -162,13 +176,25 @@ def _collection_summary(item: dict[str, Any]) -> CollectionSummary:
     }
 
 
+def _tag_summary(item: dict[str, Any]) -> TagSummary:
+    tag = item.get("_id")
+    count = item.get("count")
+
+    if not isinstance(tag, str) or type(count) is not int or count < 0:
+        raise RaindropAPIError(
+            "Raindrop.io API returned an unexpected tags response."
+        )
+
+    return {"tag": tag, "count": count}
+
+
 def _bookmark_summary(item: dict[str, Any]) -> BookmarkSummary:
     bookmark_id = item.get("_id")
     title = item.get("title")
     link = item.get("link")
     tags = item.get("tags")
     collection = item.get("collection")
-    important = item.get("important")
+    important = item.get("important", False)
 
     if type(bookmark_id) is not int or not isinstance(title, str):
         raise RaindropAPIError(
@@ -239,6 +265,22 @@ def create_server(client_factory: ClientFactory | None = None) -> MCPServer:
         items = [
             _collection_summary(item)
             for item in _response_items(payload, resource="collections")
+        ]
+        return {"items": items, "count": len(items)}
+
+    @server.tool(annotations=READ_TOOL_ANNOTATIONS)
+    async def list_tags(collection_id: int = 0) -> TagListResult:
+        """List tags with bookmark counts; collection_id 0 lists all tags.
+
+        A nonzero ID scopes the request to that collection. No child
+        collections are fetched separately. The top-level count is the
+        number of tags, not the number of bookmarks.
+        """
+        async with factory() as client:
+            payload = await client.list_tags(collection_id)
+        items = [
+            _tag_summary(item)
+            for item in _response_items(payload, resource="tags")
         ]
         return {"items": items, "count": len(items)}
 

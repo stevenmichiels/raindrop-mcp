@@ -54,6 +54,38 @@ async def test_list_collections_combines_root_and_children() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("kwargs", "expected_path"),
+    [
+        ({}, "/rest/v1/tags"),
+        ({"collection_id": 0}, "/rest/v1/tags"),
+        ({"collection_id": 123}, "/rest/v1/tags/123"),
+        ({"collection_id": -1}, "/rest/v1/tags/-1"),
+    ],
+)
+async def test_list_tags_uses_optional_collection_endpoint(
+    kwargs: dict[str, int],
+    expected_path: str,
+) -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        assert request.method == "GET"
+        assert request.url.path == expected_path
+        assert not request.url.params
+        return httpx.Response(
+            200, json={"result": True, "items": [{"_id": "api", "count": 100}]}
+        )
+
+    async with make_client(httpx.MockTransport(handler)) as client:
+        result = await client.list_tags(**kwargs)
+
+    assert result["items"] == [{"_id": "api", "count": 100}]
+    assert len(requests) == 1
+
+
+@pytest.mark.asyncio
 async def test_search_bookmarks_sends_supported_query_parameters() -> None:
     seen_request: httpx.Request | None = None
 

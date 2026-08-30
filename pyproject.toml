@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "raindrop-mcp-server"
-version = "0.1.0"
+version = "0.1.1"
 description = "A local stdio MCP server for the Raindrop.io REST API"
 readme = "README.md"
 requires-python = ">=3.10"

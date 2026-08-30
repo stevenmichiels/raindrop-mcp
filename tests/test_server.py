@@ -24,6 +24,7 @@ async def test_server_exposes_required_tools() -> None:
 
     assert set(tools_by_name) == {
         "list_collections",
+        "list_tags",
         "search_bookmarks",
         "get_bookmark",
         "create_bookmark",
@@ -34,6 +35,7 @@ async def test_server_exposes_required_tools() -> None:
         for name, tool in tools_by_name.items()
     } == {
         "list_collections": {"readOnlyHint": True, "openWorldHint": True},
+        "list_tags": {"readOnlyHint": True, "openWorldHint": True},
         "search_bookmarks": {"readOnlyHint": True, "openWorldHint": True},
         "get_bookmark": {"readOnlyHint": True, "openWorldHint": True},
         "create_bookmark": {
@@ -58,10 +60,19 @@ async def test_server_exposes_required_tools() -> None:
     assert set(tools_by_name["get_bookmark"].output_schema["properties"]) == {
         "item"
     }
+    assert set(tools_by_name["list_tags"].output_schema["properties"]) == {
+        "items",
+        "count",
+    }
 
 
 @pytest.mark.asyncio
-async def test_server_calls_tool_through_in_process_transport() -> None:
+@pytest.mark.parametrize(
+    "important_field", [{}, {"important": False}, {"important": True}]
+)
+async def test_server_calls_tool_through_in_process_transport(
+    important_field: dict[str, bool],
+) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/rest/v1/raindrop/42"
         return httpx.Response(
@@ -74,7 +85,7 @@ async def test_server_calls_tool_through_in_process_transport() -> None:
                     "link": "https://example.com",
                     "tags": ["reference"],
                     "collection": {"$id": 123},
-                    "important": True,
+                    **important_field,
                     "excerpt": "Useful description",
                     "note": "Remember this",
                     "created": "2026-08-30T10:00:00.000Z",
@@ -102,7 +113,7 @@ async def test_server_calls_tool_through_in_process_transport() -> None:
             "link": "https://example.com",
             "tags": ["reference"],
             "collection_id": 123,
-            "important": True,
+            "important": important_field.get("important", False),
             "excerpt": "Useful description",
             "note": "Remember this",
             "created": "2026-08-30T10:00:00.000Z",
@@ -115,7 +126,12 @@ async def test_server_calls_tool_through_in_process_transport() -> None:
 
 
 @pytest.mark.asyncio
-async def test_server_compacts_search_results_and_supports_listing() -> None:
+@pytest.mark.parametrize(
+    "important_field", [{}, {"important": False}, {"important": True}]
+)
+async def test_server_compacts_search_results_and_supports_listing(
+    important_field: dict[str, bool],
+) -> None:
     seen_request: httpx.Request | None = None
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -132,7 +148,7 @@ async def test_server_compacts_search_results_and_supports_listing() -> None:
                         "link": "https://example.com",
                         "tags": ["reference"],
                         "collection": {"$id": 123},
-                        "important": True,
+                        **important_field,
                         "excerpt": "Excluded from summaries",
                         "media": [{"link": "https://example.com/heavy.jpg"}],
                         "cache": {"status": "ready"},
@@ -155,7 +171,7 @@ async def test_server_compacts_search_results_and_supports_listing() -> None:
                 "link": "https://example.com",
                 "tags": ["reference"],
                 "collection_id": 123,
-                "important": True,
+                "important": important_field.get("important", False),
             }
         ],
         "count": 1,
@@ -169,6 +185,99 @@ async def test_server_compacts_search_results_and_supports_listing() -> None:
         "sort": "-created",
         "nested": "true",
     }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("important", [None, 0, "false"])
+async def test_server_rejects_non_boolean_favorite_flags(important: object) -> None:
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            json={
+                "result": True,
+                "items": [
+                    {
+                        "_id": 42,
+                        "title": "Example",
+                        "link": "https://example.com",
+                        "tags": [],
+                        "collection": {"$id": 123},
+                        "important": important,
+                    }
+                ],
+            },
+        )
+    )
+    server = create_server(lambda: RaindropClient("test-token", transport=transport))
+
+    async with Client(server) as client:
+        result = await client.call_tool("search_bookmarks", {})
+
+    assert result.is_error
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("api_items", "expected"),
+    [
+        ([], {"items": [], "count": 0}),
+        (
+            [
+                {"_id": "S & S", "count": 100, "extra": "omitted"},
+                {"_id": "tuin", "count": 2},
+            ],
+            {
+                "items": [
+                    {"tag": "S & S", "count": 100},
+                    {"tag": "tuin", "count": 2},
+                ],
+                "count": 2,
+            },
+        ),
+    ],
+)
+async def test_server_lists_compact_tags(
+    api_items: list[dict[str, object]],
+    expected: dict[str, object],
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/rest/v1/tags/123"
+        return httpx.Response(200, json={"result": True, "items": api_items})
+
+    transport = httpx.MockTransport(handler)
+    server = create_server(lambda: RaindropClient("test-token", transport=transport))
+
+    async with Client(server) as client:
+        result = await client.call_tool("list_tags", {"collection_id": 123})
+
+    assert not result.is_error
+    assert result.structured_content == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "items",
+    [
+        None,
+        ["invalid-item"],
+        [{"_id": 42, "count": 1}],
+        [{"_id": "private-tag", "count": "1"}],
+        [{"_id": "private-tag", "count": True}],
+        [{"_id": "private-tag", "count": -1}],
+        [{"_id": "private-tag"}],
+    ],
+)
+async def test_server_rejects_invalid_tag_responses(items: object) -> None:
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(200, json={"result": True, "items": items})
+    )
+    server = create_server(lambda: RaindropClient("test-token", transport=transport))
+
+    async with Client(server) as client:
+        result = await client.call_tool("list_tags", {})
+
+    assert result.is_error
+    assert "private-tag" not in result.model_dump_json()
 
 
 @pytest.mark.asyncio
@@ -222,7 +331,6 @@ async def test_server_returns_compact_create_and_update_results() -> None:
                         "link": "https://example.com",
                         "tags": [],
                         "collection": {"$id": 123},
-                        "important": False,
                         "media": [{"link": "https://example.com/heavy.jpg"}],
                     },
                 },
@@ -278,6 +386,7 @@ async def test_module_entry_point_serves_tools_over_stdio() -> None:
 
     assert {tool.name for tool in tools.tools} == {
         "list_collections",
+        "list_tags",
         "search_bookmarks",
         "get_bookmark",
         "create_bookmark",

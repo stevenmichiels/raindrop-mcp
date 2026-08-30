@@ -9,6 +9,7 @@ uses the MCP Python SDK, `httpx`, and stdio transport.
 | Tool | Access | Description |
 | --- | --- | --- |
 | `list_collections` | Read | List root and nested collections. |
+| `list_tags` | Read | List tag names and bookmark counts, optionally for one collection. |
 | `search_bookmarks` | Read | List bookmarks or search with Raindrop.io's native syntax. |
 | `get_bookmark` | Read | Get one bookmark by ID. |
 | `create_bookmark` | Write | Create a bookmark. |
@@ -54,6 +55,9 @@ default_tools_approval_mode = "writes"
 [mcp_servers.raindrop.tools.list_collections]
 approval_mode = "approve"
 
+[mcp_servers.raindrop.tools.list_tags]
+approval_mode = "approve"
+
 [mcp_servers.raindrop.tools.search_bookmarks]
 approval_mode = "approve"
 
@@ -71,10 +75,16 @@ stdout because stdout carries MCP protocol messages.
 ## Tool behavior
 
 - Collection ID `0` searches all bookmarks.
+- `list_tags` defaults to all collections (`collection_id=0`); pass a collection
+  ID to scope the API request. Child collections are not fetched separately.
+  Results contain `items: [{"tag": "api", "count": 100}]` and a top-level
+  `count` representing the number of tags, not bookmarks.
 - Omit `query` to list bookmarks, or provide Raindrop.io's native search syntax.
 - Search pages are zero-indexed, default to 20 items, and allow at most 50.
 - Searches default to relevance; listings default to newest first.
 - Search returns compact bookmark summaries; use `get_bookmark` for detail.
+- An omitted `important` field is returned as `false`; explicit non-boolean
+  values still fail response validation.
 - Heavy API metadata such as media, cache data, and highlights is omitted from
   MCP responses.
 - Create and update map `collection_id` to Raindrop.io's
@@ -110,5 +120,6 @@ This project is licensed under the [MIT License](LICENSE).
 - [Obtain an access token](https://developer.raindrop.io/v1/authentication/token)
 - [Make authorized calls](https://developer.raindrop.io/v1/authentication/calls)
 - [Collection methods](https://developer.raindrop.io/v1/collections/methods)
+- [Tags](https://developer.raindrop.io/v1/tags)
 - [Multiple raindrops](https://developer.raindrop.io/v1/raindrops/multiple)
 - [Single raindrop](https://developer.raindrop.io/v1/raindrops/single)

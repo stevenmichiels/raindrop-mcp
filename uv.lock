@@ -684,6 +684,7 @@ source = { editable = "." }
 dependencies = [
     { name = "httpx" },
     { name = "mcp" },
+    { name = "mcp-types" },
     { name = "typing-extensions" },
 ]
 
@@ -697,6 +698,7 @@ test = [
 requires-dist = [
     { name = "httpx", specifier = ">=0.27,<1" },
     { name = "mcp", specifier = ">=2.1,<3" },
+    { name = "mcp-types", specifier = ">=2.1,<3" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8,<9" },
     { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.24,<2" },
     { name = "typing-extensions", specifier = ">=4.12,<5" },

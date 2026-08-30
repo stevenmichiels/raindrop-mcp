@@ -79,8 +79,11 @@ stdout because stdout carries MCP protocol messages.
   MCP responses.
 - Create and update map `collection_id` to Raindrop.io's
   `{"collection": {"$id": ...}}` request shape.
-- Write tools do not perform implicit follow-up reads; they return the write
-  response or a compact confirmation.
+- Write tools do not perform implicit follow-up reads. `update_bookmark`
+  returns a compact acknowledgement (`id`, `updated`, and `updated_fields`)
+  instead of exposing the full Raindrop.io update response.
+- MCP tool annotations describe read, mutation, idempotency, and external-service
+  behavior to clients. These annotations are hints, not access controls.
 - `parse_metadata` and `reparse_metadata` map to the official `pleaseParse: {}`
   request field.
 

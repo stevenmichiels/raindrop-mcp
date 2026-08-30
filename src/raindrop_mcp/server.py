@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import Any, Literal
 
 from mcp.server import MCPServer
+from mcp_types import ToolAnnotations
 from typing_extensions import TypedDict
 
 from raindrop_mcp.client import RaindropAPIError, RaindropClient
@@ -21,6 +22,23 @@ BookmarkSort = Literal[
     "domain",
     "-domain",
 ]
+
+READ_TOOL_ANNOTATIONS = ToolAnnotations(
+    read_only_hint=True,
+    open_world_hint=True,
+)
+CREATE_TOOL_ANNOTATIONS = ToolAnnotations(
+    read_only_hint=False,
+    destructive_hint=False,
+    idempotent_hint=False,
+    open_world_hint=True,
+)
+UPDATE_TOOL_ANNOTATIONS = ToolAnnotations(
+    read_only_hint=False,
+    destructive_hint=True,
+    idempotent_hint=False,
+    open_world_hint=True,
+)
 
 
 class CollectionSummary(TypedDict):
@@ -211,7 +229,7 @@ def create_server(client_factory: ClientFactory | None = None) -> MCPServer:
         ),
     )
 
-    @server.tool()
+    @server.tool(annotations=READ_TOOL_ANNOTATIONS)
     async def list_collections(
         include_children: bool = True,
     ) -> CollectionListResult:
@@ -224,7 +242,7 @@ def create_server(client_factory: ClientFactory | None = None) -> MCPServer:
         ]
         return {"items": items, "count": len(items)}
 
-    @server.tool()
+    @server.tool(annotations=READ_TOOL_ANNOTATIONS)
     async def search_bookmarks(
         query: str | None = None,
         collection_id: int = 0,
@@ -258,7 +276,7 @@ def create_server(client_factory: ClientFactory | None = None) -> MCPServer:
             "per_page": per_page,
         }
 
-    @server.tool()
+    @server.tool(annotations=READ_TOOL_ANNOTATIONS)
     async def get_bookmark(bookmark_id: int) -> BookmarkItemResult:
         """Get one bookmark by its positive Raindrop.io ID."""
         async with factory() as client:
@@ -269,7 +287,7 @@ def create_server(client_factory: ClientFactory | None = None) -> MCPServer:
             )
         }
 
-    @server.tool()
+    @server.tool(annotations=CREATE_TOOL_ANNOTATIONS)
     async def create_bookmark(
         link: str,
         title: str | None = None,
@@ -300,7 +318,7 @@ def create_server(client_factory: ClientFactory | None = None) -> MCPServer:
             )
         }
 
-    @server.tool()
+    @server.tool(annotations=UPDATE_TOOL_ANNOTATIONS)
     async def update_bookmark(
         bookmark_id: int,
         link: str | None = None,

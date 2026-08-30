@@ -28,6 +28,7 @@ classifiers = [
 dependencies = [
     "httpx>=0.27,<1",
     "mcp>=2.1,<3",
+    "mcp-types>=2.1,<3",
     "typing-extensions>=4.12,<5",
 ]
 

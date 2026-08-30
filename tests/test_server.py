@@ -29,6 +29,26 @@ async def test_server_exposes_required_tools() -> None:
         "create_bookmark",
         "update_bookmark",
     }
+    assert {
+        name: tool.annotations.model_dump(by_alias=True, exclude_none=True)
+        for name, tool in tools_by_name.items()
+    } == {
+        "list_collections": {"readOnlyHint": True, "openWorldHint": True},
+        "search_bookmarks": {"readOnlyHint": True, "openWorldHint": True},
+        "get_bookmark": {"readOnlyHint": True, "openWorldHint": True},
+        "create_bookmark": {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
+        "update_bookmark": {
+            "readOnlyHint": False,
+            "destructiveHint": True,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
+    }
     assert set(tools_by_name["search_bookmarks"].output_schema["properties"]) == {
         "items",
         "count",
